@@ -1,0 +1,10 @@
+{
+    "C_Cpp.errorSquiggles": "Enabled",
+    "files.associations": {
+        "query.h": "c",
+        "stdio.h": "c",
+        "sstream": "c",
+        "stdbool.h": "c",
+        "ios": "c"
+    }
+}
