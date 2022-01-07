@@ -1,11 +1,15 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <regex.h>
+#include "ht.h"
 
 char delim[] = " ";
 
+ht *sql_tables_columns;
+
 typedef struct node 
 {
+   char *key;
    char *val;
    struct node *next;
 } list_node_t;
@@ -30,8 +34,9 @@ typedef enum operator
 
 typedef enum value_type 
 {
-   SINGLE,
-   ARITHMETIC
+   CONSTANT,
+   ARITHMETIC,
+   COLUMN_FIELD
 } value_t;
 
 typedef struct arithmetic_condition
@@ -41,11 +46,12 @@ typedef struct arithmetic_condition
    char *operator;
 } arithmetic_condition_t;
 
-typedef struct simple_condition
+typedef struct comparison_condition
 {
    void *value;
    value_t value_type;
-} simple_condition_t;
+   char *table;
+} comparison_condition_t;
 
 typedef struct like_condition
 {
@@ -66,19 +72,32 @@ typedef struct between_condition
    value_t max_value_type;
 } between_condition_t;
 
+typedef struct field_operand
+{
+   char *name;
+   char *table;
+} field_operand_t;
+
 typedef struct condition
 {
-   char *operand1;
+   field_operand_t *operand1;
    operator_t operator;
    void *operand2;
    struct condition *next_condition;
    bool not;
 } condition_t;
 
+typedef struct table_name
+{
+   char *name;
+   char alt_name[256];
+   struct table_name *next_table;
+} table_name_t;
+
 typedef struct query
 {
    type_t type;
-   char *table_name;
+   table_name_t *table_name_ptr;
    list_node_t *field_ptr;
    condition_t *condition_ptr;
    condition_t *and_condition_ptr;
@@ -117,7 +136,7 @@ char* check_operator(operator_t op)
 void print_where_condition(condition_t *cond) 
 {
    char *operator_to_print = check_operator(cond->operator);
-   char operand_print[512];
+   char *operand_print;
    if (strcmp(operator_to_print, "LIKE") == 0) 
    {
       strcpy(operand_print, ((like_condition_t *) cond->operand2)->ex);
@@ -128,7 +147,7 @@ void print_where_condition(condition_t *cond)
       between_condition_t *between_condition = (between_condition_t *) cond->operand2;
       switch (between_condition->min_value_type)
       {
-         case SINGLE:
+         case CONSTANT:
          {
             strcat(operand_print, (char *)(between_condition->min_value));
             break;
@@ -151,7 +170,7 @@ void print_where_condition(condition_t *cond)
       strcat(operand_print, " AND ");
       switch (between_condition->max_value_type)
       {
-         case SINGLE:
+         case CONSTANT:
          {
             strcat(operand_print, (char *)(between_condition->max_value));
             break;
@@ -190,17 +209,24 @@ void print_where_condition(condition_t *cond)
       strcat(operand_print, ")");
    }
    else {
-      simple_condition_t *equality_condition = (simple_condition_t *) cond->operand2;
-      switch (equality_condition->value_type)
+      comparison_condition_t *comparison_condition = (comparison_condition_t *) cond->operand2;
+      switch (comparison_condition->value_type)
       {
-         case SINGLE:
+         case CONSTANT:
          {
-            strcpy(operand_print, (char *)(equality_condition->value));
+            strcpy(operand_print, (char *)(comparison_condition->value));
+            break;
+         }
+         case COLUMN_FIELD:
+         {
+            strcpy(operand_print, comparison_condition->table);
+            strcat(operand_print, "_");
+            strcat(operand_print, comparison_condition->value);
             break;
          }
          case ARITHMETIC: 
          {
-            arithmetic_condition_t *athm_cond = (arithmetic_condition_t *)(equality_condition->value);
+            arithmetic_condition_t *athm_cond = (arithmetic_condition_t *)(comparison_condition->value);
             strcpy(operand_print, athm_cond->operand1);
             strcat(operand_print, " ");
             strcat(operand_print, athm_cond->operator);
@@ -215,14 +241,11 @@ void print_where_condition(condition_t *cond)
       }
    }
 
-   if (cond->not) 
-   {
-      printf("\"%s NOT %s %s\", ", cond->operand1, operator_to_print, operand_print);
-   }
-   else 
-   {
-      printf("\"%s %s %s\", ", cond->operand1, operator_to_print, operand_print);
-   }
+   char *not = cond->not ? "NOT" : " \b\b";
+   char *table = cond->operand1->table == NULL ? "" : cond->operand1->table;
+   char table_delim = cond->operand1->table == NULL ? '\0' : '_';
+
+   printf("\"%s%c%s %s %s %s\", ", table, table_delim, cond->operand1->name, not, operator_to_print, operand_print);
 }
 
 void print_query_object(query_t *query) 
@@ -236,12 +259,20 @@ void print_query_object(query_t *query)
    printf("The select fields are ");
    while (current_field != NULL) 
    {
-      printf("\"%s\", ", current_field->val);
+      char *table = current_field->key == NULL ? "" : current_field->key;
+      char table_delim = current_field->key == NULL ? '\0' : '_';
+      printf("\"%s%c%s\", ", table, table_delim, current_field->val);
       current_field = current_field->next;
    }
    printf("\n");
 
-   printf("The tablename is \"%s\" \n", query->table_name);
+   table_name_t *current_table_name = query->table_name_ptr;
+   printf("The tablename are ");
+   while (current_table_name != NULL) {
+      printf("\"%s (%s)\", ", current_table_name->name, current_table_name->alt_name);
+      current_table_name = current_table_name->next_table;
+   }
+   printf("\n");
 
    condition_t *current_condition = query->condition_ptr;
    printf("The condition is ");
