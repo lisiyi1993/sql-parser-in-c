@@ -162,7 +162,6 @@ query_t* parse(char *inputQuerry) {
                hashset_t table_columns = (hashset_t) ht_get(sql_tables_columns, correspond_table);
                if (table_columns == NULL) {
                   table_columns = hashset_create();
-                  hashset_add(table_columns, "");
                   ht_set(sql_tables_columns, correspond_table, table_columns);
                }
                add_str_to_set(table_columns, field);
@@ -251,7 +250,6 @@ query_t* parse(char *inputQuerry) {
                hashset_t table_columns = (hashset_t) ht_get(sql_tables_columns, correspond_table);
                if (table_columns == NULL) {
                   table_columns = hashset_create();
-                  hashset_add(table_columns, "");
                   ht_set(sql_tables_columns, correspond_table, table_columns);
                }
                add_str_to_set(table_columns, field);
@@ -376,7 +374,6 @@ query_t* parse(char *inputQuerry) {
                hashset_t table_columns = (hashset_t) ht_get(sql_tables_columns, correspond_table);
                if (table_columns == NULL) {
                   table_columns = hashset_create();
-                  hashset_add(table_columns, "");
                   ht_set(sql_tables_columns, correspond_table, table_columns);
                }
                add_str_to_set(table_columns, value);

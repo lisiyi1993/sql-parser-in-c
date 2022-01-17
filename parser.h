@@ -241,7 +241,7 @@ void print_where_condition(condition_t *cond)
       }
    }
 
-   char *not = cond->not ? "NOT" : " \b\b";
+   char *not = cond->not ? "NOT" : "\b";
    char *table = cond->operand1->table == NULL ? "" : cond->operand1->table;
    char table_delim = cond->operand1->table == NULL ? '\0' : '_';
 
